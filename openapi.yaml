@@ -1,0 +1,405 @@
+openapi: 3.0.3
+info:
+  title: Crypto Wallet API
+  description: API для регистрации пользователей, управления криптовалютным кошельком и просмотра истории цен.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+
+paths:
+  /register:
+    post:
+      summary: Зарегистрировать пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCredentials'
+            example:
+              username: maria
+              password: password123
+      responses:
+        '201':
+          description: Пользователь зарегистрирован. Сохраните выданный API key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Пользователь с таким именем уже существует
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth:
+    post:
+      summary: Войти и получить API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCredentials'
+            example:
+              username: maria
+              password: password123
+      responses:
+        '201':
+          description: Вход выполнен. Сохраните выданный API key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponse'
+        '400':
+          description: Неверные данные или пользователь не найден
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Message'
+                  - type: string
+                    example: Пользователь с таким именем не найден
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /wallet:
+    get:
+      summary: Получить кошелёк пользователя
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список криптовалют в кошельке
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - user
+                properties:
+                  user:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WalletItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /wallet/add:
+    post:
+      summary: Добавить криптовалюту в кошелёк
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - crypto
+              properties:
+                crypto:
+                  $ref: '#/components/schemas/CryptoSymbol'
+            example:
+              crypto: BTC
+      responses:
+        '201':
+          description: Криптовалюта добавлена, цена получена
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - crypto
+                  - name
+                  - price
+                properties:
+                  message:
+                    type: string
+                    example: Монета добавлена в кошелёк, цена обновлена
+                  crypto:
+                    $ref: '#/components/schemas/CryptoSymbol'
+                  name:
+                    type: string
+                    example: Bitcoin
+                  price:
+                    type: number
+                    format: double
+                    example: 65000.25
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Монета не найдена в CoinMarketCap
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '409':
+          description: Монета уже есть в кошельке
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '502':
+          description: Не удалось получить данные из CoinMarketCap
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /wallet/update:
+    put:
+      summary: Изменить криптовалюту в кошельке
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - crypto
+                - newCrypto
+              properties:
+                crypto:
+                  $ref: '#/components/schemas/CryptoSymbol'
+                newCrypto:
+                  $ref: '#/components/schemas/CryptoSymbol'
+            example:
+              crypto: BTC
+              newCrypto: ETH
+      responses:
+        '200':
+          description: Данные успешно обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Монета не найдена в кошельке или CoinMarketCap
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '409':
+          description: Новая монета уже есть в кошельке
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '502':
+          description: Не удалось получить данные из CoinMarketCap
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /wallet/delete:
+    delete:
+      summary: Удалить криптовалюту из кошелька
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - crypto
+              properties:
+                crypto:
+                  $ref: '#/components/schemas/CryptoSymbol'
+            example:
+              crypto: BTC
+      responses:
+        '200':
+          description: Данные успешно удалены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Монеты нет в кошельке
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /priceStory:
+    get:
+      summary: Получить историю цен монеты
+      description: >-
+        Текущая реализация читает crypto и length из JSON-тела GET-запроса.
+        Некоторые HTTP-клиенты и инструменты не поддерживают тело для GET;
+        документация отражает поведение существующего кода.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - crypto
+                - length
+              properties:
+                crypto:
+                  $ref: '#/components/schemas/CryptoSymbol'
+                length:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
+                  example: 10
+            example:
+              crypto: BTC
+              length: 10
+      responses:
+        '200':
+          description: История цен получена
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - list
+                properties:
+                  list:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PriceHistoryItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API key
+      description: API key, полученный при регистрации или входе. Передавать как Bearer <apiKey>.
+
+  schemas:
+    UserCredentials:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: maria
+        password:
+          type: string
+          format: password
+          example: password123
+
+    ApiKeyResponse:
+      type: object
+      required:
+        - message
+        - apiKey
+      properties:
+        message:
+          type: string
+        apiKey:
+          type: string
+          description: Секретный ключ пользователя для запросов к этому API. Показывается только при регистрации или входе.
+          pattern: '^[a-f0-9]{64}$'
+          example: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+    CryptoSymbol:
+      type: string
+      description: Символ криптовалюты, 2–20 латинских букв или цифр.
+      pattern: '^[A-Za-z0-9]{2,20}$'
+      example: BTC
+
+    WalletItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        crypto:
+          $ref: '#/components/schemas/CryptoSymbol'
+        name:
+          type: string
+          example: Bitcoin
+        updated_at:
+          type: string
+          example: '2026-10-07 12:00:00'
+
+    PriceHistoryItem:
+      type: object
+      properties:
+        crypto:
+          $ref: '#/components/schemas/CryptoSymbol'
+        price:
+          type: number
+          format: double
+          example: 65000.25
+        time:
+          type: string
+          example: '2026-10-07 12:00:00'
+
+    Message:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Описание результата или ошибки
+
+  responses:
+    BadRequest:
+      description: Неверные или отсутствующие входные данные
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Message'
+    Unauthorized:
+      description: Отсутствует или неверен API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Message'
+    ServerError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Message'
